@@ -7,6 +7,14 @@
 
 ---
 
+> **Errata — implementation drift (2026-09-11).** This document is the approved design-of-record; the shipped code diverges from it in known places. The canonical list, with `file:line` evidence for each entry, is [`docs/reference/drift-register.md`](../reference/drift-register.md). Highest-impact drifts:
+>
+> - **Tier 2 is a seed provider, not a resolver (§5).** BM25+ runs on every uncached query to seed Tier 3; the tau-confidence/tau-gap resolution described in §5 was removed, and `tierResolved` is never `2`.
+> - **Embeddings are used on the Persona rebuild path only (§6.4).** The retrieval query path is embedding-free and LLM-free; Persona rebuild's k-NN stage calls SillyTavern's Vectors API.
+> - **The retrieval trace ring buffer is capped at 128, not 100 (§3.2, §8, §9.1).**
+> - **Lifecycle daily decay and maturity transitions are implemented but unwired (§7).** Importance moves via access/update events; entries stay `maturity: 'draft'` in production.
+> - **Several settings controls are persisted but inert (settings panel):** buffer size, idle timeout, trace limit, debug mode, and the embeddings profile are not read at runtime; the effective values are hardcoded constants.
+
 ## 1. Context
 
 STARmem v1 (~40K LOC) implemented a hybrid Memory-Augmented Generation system for SillyTavern based on the AdaMem paper's 4-memory architecture with an ad-hoc 3-tier retrieval router. In private beta the retrieval path grew three overlapping implementations (RetrievalRouter, UnifiedRetrieval fallback, direct memory-retrieval bypass) and the async consolidation pipeline sprawled beyond its original spec as latency anxiety drove "just add another event hook" reactions. The architecture still works but does not justify its weight.
