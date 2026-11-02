@@ -61,6 +61,11 @@
                     <span id="starmem-settings-injection-depth-value" class="starmem-settings-value"></span>
                 </div>
                 <div class="starmem-settings-row">
+                    <label for="starmem-settings-retrieval-k">Max memories per turn:</label>
+                    <input type="range" id="starmem-settings-retrieval-k" min="1" max="50" step="1" />
+                    <span id="starmem-settings-retrieval-k-value" class="starmem-settings-value"></span>
+                </div>
+                <div class="starmem-settings-row">
                     <label for="starmem-settings-injection-role">Role:</label>
                     <select id="starmem-settings-injection-role" class="text_pole">
                         <option value="0">System</option>
@@ -115,6 +120,42 @@
                         <input type="checkbox" id="starmem-settings-debug-mode" />
                         Debug logging
                     </label>
+                </div>
+            </details>
+
+            <details class="starmem-settings-section">
+                <summary>Maintenance</summary>
+                <div class="starmem-settings-row">
+                    <button type="button" id="starmem-settings-clear" class="menu_button">Clear all memories</button>
+                    <button type="button" id="starmem-settings-rebuild" class="menu_button">Rebuild from chat</button>
+                </div>
+                <div id="starmem-settings-rebuild-progress" class="starmem-rebuild-progress" hidden>
+                    <div class="starmem-rebuild-bar">
+                        <div id="starmem-settings-rebuild-bar-fill" class="starmem-rebuild-bar-fill"></div>
+                    </div>
+                    <span id="starmem-settings-rebuild-status" class="starmem-settings-value"></span>
+                    <button type="button" id="starmem-settings-rebuild-cancel" class="menu_button">Cancel</button>
+                </div>
+                <div class="starmem-settings-row">
+                    <button type="button" id="starmem-settings-export" class="menu_button">Export memories</button>
+                    <button type="button" id="starmem-settings-import" class="menu_button">Import memories</button>
+                    <input type="file" id="starmem-settings-import-file" accept=".json,application/json" hidden />
+                </div>
+                <div class="starmem-settings-row">
+                    <label>
+                        <input type="checkbox" id="starmem-settings-auto-persona" />
+                        Auto-rebuild persona after consolidation (at suggestion threshold)
+                    </label>
+                </div>
+                <div class="starmem-settings-hint">
+                    <p>All actions apply to the <strong>currently open chat</strong>.</p>
+                    <p><strong>Clear</strong> wipes every memory, the graph, and traces.</p>
+                    <p><strong>Rebuild</strong> clears, then re-extracts facts from all existing assistant
+                        messages — one LLM call per batch of 5 messages.</p>
+                    <p><strong>Export/Import</strong> backs up / restores this chat's full STARmem state
+                        as JSON. Import replaces the current state.</p>
+                    <p><strong>Auto-rebuild persona</strong> runs the persona pipeline for every subject
+                        once 100+ new facts accumulate — several LLM + embedding calls per subject.</p>
                 </div>
             </details>
 

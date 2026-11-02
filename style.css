@@ -374,6 +374,35 @@
     cursor: not-allowed;
 }
 
+/* Maintenance — rebuild progress */
+
+.starmem-rebuild-progress {
+    display: flex;
+    align-items: center;
+    gap: var(--starmem-space-2);
+    margin-top: var(--starmem-space-2);
+}
+
+.starmem-rebuild-progress[hidden] {
+    display: none;
+}
+
+.starmem-rebuild-bar {
+    flex: 1;
+    height: 6px;
+    background: var(--starmem-bg-elevated);
+    border: 1px solid var(--starmem-border);
+    border-radius: var(--starmem-radius);
+    overflow: hidden;
+}
+
+.starmem-rebuild-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: var(--starmem-accent);
+    transition: width 200ms ease;
+}
+
 .starmem-settings-actions {
     display: flex;
     gap: var(--starmem-space-2);
@@ -1024,6 +1053,88 @@
     text-transform: uppercase;
 }
 
+/* Subjects overview — list of every known subject above the persona groups. */
+
+.starmem-viewer .starmem-viewer-subjects {
+    border: 1px solid var(--starmem-border-faint);
+    border-radius: var(--starmem-radius);
+    padding: var(--starmem-space-3) var(--starmem-space-4);
+}
+
+.starmem-viewer .starmem-viewer-subjects-title {
+    font-family: var(--starmem-font-display);
+    font-size: var(--starmem-fs-meta);
+    letter-spacing: var(--starmem-tracking-meta);
+    color: var(--starmem-fg-muted);
+    text-transform: uppercase;
+    margin: 0 0 var(--starmem-space-2);
+}
+
+.starmem-viewer .starmem-viewer-subjects-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--starmem-space-2);
+}
+
+.starmem-viewer .starmem-viewer-subjects-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-items: baseline;
+    gap: var(--starmem-space-2) var(--starmem-space-3);
+}
+
+.starmem-viewer .starmem-viewer-subjects-name {
+    font-family: var(--starmem-font-display);
+    color: var(--starmem-fg);
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.starmem-viewer .starmem-viewer-subjects-counts {
+    font-family: var(--starmem-font-mono);
+    font-size: var(--starmem-fs-mono);
+    color: var(--starmem-fg-muted);
+    white-space: nowrap;
+}
+
+.starmem-viewer .starmem-viewer-subjects-actions {
+    display: flex;
+    gap: var(--starmem-space-2);
+    white-space: nowrap;
+}
+
+.starmem-viewer .starmem-viewer-subjects-row .starmem-viewer-persona-progress {
+    grid-column: 1 / -1;
+}
+
+.starmem-viewer .starmem-viewer-subjects-merge-form {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--starmem-space-2);
+    padding-top: var(--starmem-space-1);
+}
+
+.starmem-viewer .starmem-viewer-subjects-merge-label {
+    font-size: var(--starmem-fs-meta);
+    color: var(--starmem-fg-muted);
+}
+
+.starmem-viewer .starmem-viewer-subjects-merge-select {
+    max-width: 40ch;
+}
+
+.starmem-viewer .starmem-viewer-subjects-merge-status {
+    font-family: var(--starmem-font-mono);
+    font-size: var(--starmem-fs-mono);
+    color: var(--starmem-fg-muted);
+}
+
 .starmem-viewer .starmem-viewer-persona-group {
     border-left: 2px solid var(--starmem-border-faint);
     padding-left: var(--starmem-space-4);
@@ -1046,6 +1157,13 @@
     margin: 0;
     flex: 1 1 auto;
     min-width: 0;
+}
+
+.starmem-viewer .starmem-viewer-persona-pending {
+    font-family: var(--starmem-font-mono);
+    font-size: var(--starmem-fs-mono);
+    color: var(--starmem-accent);
+    white-space: nowrap;
 }
 
 /* Rebuild button — quiet by default, accent-bordered when ready. The
@@ -1108,6 +1226,8 @@
     flex-direction: column;
     gap: var(--starmem-space-1);
     margin-top: var(--starmem-space-2);
+    max-height: 12em;
+    overflow-y: auto;
 }
 
 .starmem-viewer .starmem-viewer-progress-line {
@@ -1115,6 +1235,10 @@
     font-size: var(--starmem-fs-mono);
     color: var(--starmem-fg-muted);
     line-height: var(--starmem-lh-tight);
+}
+
+.starmem-viewer .starmem-viewer-progress-line-active {
+    color: var(--starmem-accent);
 }
 
 /* -- Graph tab — adjacency listing --------------------------------------- */

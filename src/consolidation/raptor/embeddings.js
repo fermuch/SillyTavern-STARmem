@@ -111,14 +111,88 @@ function makeDefaultClient() {
     // ST's script.js — that path doesn't resolve outside the browser.
     // From this file (src/consolidation/raptor/embeddings.js) it's 7 levels up
     // to reach `public/script.js`.
-    /** @type {Promise<{ getRequestHeaders: () => Record<string, string> }> | null} */
-    let stHeadersModule = null;
-    const getHeaders = async () => {
-        if (!stHeadersModule) {
-            stHeadersModule = import('../../../../../../../script.js');
+    /** @type {Promise<any> | null} */
+    let stModule = null;
+    const getSt = async () => {
+        if (!stModule) {
+            stModule = import('../../../../../../../script.js');
         }
-        const { getRequestHeaders } = await stHeadersModule;
+        return stModule;
+    };
+    const getHeaders = async () => {
+        const { getRequestHeaders } = await getSt();
         return getRequestHeaders();
+    };
+    /**
+     * Build the `source` + per-source fields ST's /api/vector/* endpoints
+     * require in the request BODY. Mirrors getVectorsRequestBody() in ST's
+     * vectors extension: the server never sees the client's
+     * extension_settings, so omitting them 500s with
+     * "Unknown vector source undefined" (String(undefined) is truthy and
+     * defeats the server's 'transformers' fallback).
+     * @returns {Promise<Record<string, any>>}
+     */
+    const vectorRequestFields = async () => {
+        const { extension_settings, textgenerationwebui_settings, textgen_types, oai_settings } = await getSt();
+        const vs = extension_settings?.vectors ?? {};
+        const source = typeof vs.source === 'string' && vs.source ? vs.source : 'transformers';
+        if (source === 'webllm' || source === 'koboldcpp') {
+            throw new Error(
+                `STARmem persona rebuild: vector source "${source}" computes embeddings inside ST's own ` +
+                'extension UI and cannot be driven externally — pick a server-side source in the ' +
+                'Vectors extension settings (e.g. ollama or transformers).',
+            );
+        }
+        /** @type {Record<string, any>} */
+        const body = { source };
+        const alt = (/** @type {string} */ type) =>
+            vs.use_alt_endpoint ? vs.alt_endpoint_url : textgenerationwebui_settings?.server_urls?.[type];
+        switch (source) {
+            case 'openai': body.model = vs.openai_model; break;
+            case 'togetherai': body.model = vs.togetherai_model; break;
+            case 'cohere': body.model = vs.cohere_model; break;
+            case 'openrouter': body.model = vs.openrouter_model; break;
+            case 'electronhub': body.model = vs.electronhub_model; break;
+            case 'nanogpt': body.model = vs.nanogpt_model; break;
+            case 'chutes': body.model = vs.chutes_model; break;
+            case 'siliconflow':
+                body.model = vs.siliconflow_model;
+                body.siliconflow_endpoint = oai_settings?.siliconflow_endpoint;
+                break;
+            case 'workers_ai':
+                body.model = vs.workers_ai_model || '@cf/baai/bge-m3';
+                body.workers_ai_account_id = oai_settings?.workers_ai_account_id;
+                break;
+            case 'ollama':
+                body.model = vs.ollama_model;
+                body.apiUrl = alt(textgen_types?.OLLAMA);
+                body.keep = !!vs.ollama_keep;
+                break;
+            case 'llamacpp':
+                body.apiUrl = alt(textgen_types?.LLAMACPP);
+                break;
+            case 'vllm':
+                body.apiUrl = alt(textgen_types?.VLLM);
+                body.model = vs.vllm_model;
+                break;
+            case 'extras':
+                body.extrasUrl = extension_settings?.apiUrl;
+                body.extrasKey = extension_settings?.apiKey;
+                break;
+            case 'palm':
+                body.model = vs.google_model;
+                body.api = 'makersuite';
+                break;
+            case 'vertexai':
+                body.model = vs.google_model;
+                body.api = 'vertexai';
+                body.vertexai_auth_mode = oai_settings?.vertexai_auth_mode;
+                body.vertexai_region = oai_settings?.vertexai_region;
+                body.vertexai_express_project_id = oai_settings?.vertexai_express_project_id;
+                break;
+            default: break; // transformers & co. need no extra fields
+        }
+        return body;
     };
     return {
         async createCollection(_collectionId) {
@@ -129,7 +203,7 @@ function makeDefaultClient() {
             const response = await fetch('/api/vector/insert', {
                 method: 'POST',
                 headers: await getHeaders(),
-                body: JSON.stringify({ collectionId, items }),
+                body: JSON.stringify({ ...(await vectorRequestFields()), collectionId, items }),
             });
             if (!response.ok) {
                 throw new Error(`embeddings.insertChunks: HTTP ${response.status}`);
@@ -139,7 +213,7 @@ function makeDefaultClient() {
             const response = await fetch('/api/vector/query', {
                 method: 'POST',
                 headers: await getHeaders(),
-                body: JSON.stringify({ collectionId, searchText: text, topK: k }),
+                body: JSON.stringify({ ...(await vectorRequestFields()), collectionId, searchText: text, topK: k }),
             });
             if (!response.ok) {
                 throw new Error(`embeddings.queryKNN: HTTP ${response.status}`);
@@ -159,7 +233,7 @@ function makeDefaultClient() {
             const response = await fetch('/api/vector/purge', {
                 method: 'POST',
                 headers: await getHeaders(),
-                body: JSON.stringify({ collectionId }),
+                body: JSON.stringify({ ...(await vectorRequestFields()), collectionId }),
             });
             if (!response.ok) {
                 throw new Error(`embeddings.purgeCollection: HTTP ${response.status}`);

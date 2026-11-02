@@ -31,6 +31,12 @@ const log = createLogger({ debug: false }).scope('integration:settings');
  *   extractionModelLabel: string,
  *   tracesMaxLen: number,
  *   debugMode: boolean,
+ *   autoPersonaRebuild: boolean,
+ *   retrievalK: number,
+ *   injectionMode: string,
+ *   injectionPosition: number,
+ *   injectionDepth: number,
+ *   injectionRole: number,
  * }} Settings
  */
 
@@ -117,8 +123,15 @@ export function validateSettings(candidate) {
     out.embedProfileId = typeof out.embedProfileId === 'string' ? out.embedProfileId : '';
     out.extractionModelLabel = typeof out.extractionModelLabel === 'string' ? out.extractionModelLabel : '';
 
+    if (typeof out.retrievalK !== 'number' || !Number.isFinite(out.retrievalK)) {
+        out.retrievalK = SETTINGS_DEFAULTS.retrievalK;
+    }
+    out.retrievalK = clamp(Math.round(out.retrievalK),
+        SETTINGS_BOUNDS.retrievalK.min, SETTINGS_BOUNDS.retrievalK.max);
+
     // Boolean.
     out.debugMode = Boolean(out.debugMode);
+    out.autoPersonaRebuild = Boolean(out.autoPersonaRebuild);
 
     // Injection mode — must be one of the known modes.
     if (!INJECTION_MODES.includes(out.injectionMode)) {

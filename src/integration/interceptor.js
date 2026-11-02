@@ -177,7 +177,7 @@ export function injectMemoryPrompt(
  * Lazy-imported so the static dep graph doesn't pull settings into tests
  * that mock the interceptor's context but not the settings context.
  *
- * @returns {Promise<{ mode: string, position: number, depth: number, role: number }>}
+ * @returns {Promise<{ mode: string, position: number, depth: number, role: number, k: number }>}
  */
 async function resolveInjectionSettings() {
     try {
@@ -188,6 +188,7 @@ async function resolveInjectionSettings() {
             position: s.injectionPosition,
             depth: s.injectionDepth,
             role: s.injectionRole,
+            k: typeof s.retrievalK === 'number' ? s.retrievalK : 5,
         };
     } catch {
         return {
@@ -195,6 +196,7 @@ async function resolveInjectionSettings() {
             position: INJECTION_POSITION_IN_CHAT,
             depth: INJECTION_DEPTH,
             role: INJECTION_ROLE_SYSTEM,
+            k: 5,
         };
     }
 }
@@ -251,7 +253,7 @@ export async function starmemInterceptor(chat, _contextSize, _abort, type) {
         const cause = typeof type === 'string' && type.length > 0 ? type : 'normal';
         const entries = await withWriteLock(chatId, async () => {
             const state = await loadState(chatId);
-            const result = retrieve(state, query, { now: new Date(), cause });
+            const result = retrieve(state, query, { now: new Date(), cause, k: cfg.k });
             if (result?.state) {
                 await persistState(chatId, result.state);
             }
@@ -260,6 +262,11 @@ export async function starmemInterceptor(chat, _contextSize, _abort, type) {
 
         const body = formatMemoryMessage(entries);
         const macroBody = formatMemoryMessage(entries, { header: false });
+        // Console visibility: log exactly what goes into the prompt so the
+        // user can sanity-check retrieval without opening the viewer.
+        if (entries.length > 0) {
+            log.info(`injecting ${entries.length} memories (k=${cfg.k}):\n${body}`);
+        }
 
         // Always cache the headerless body—the macro is meant to be wrapped
         // by the user's own prompt phrasing, so a "Retrieved memories:"

@@ -44,6 +44,19 @@ import { createLogger } from '../core/logger.js';
 
 const log = createLogger({ debug: false }).scope('consolidation');
 
+/** @type {null | ((chatId: string, result: { added: number, updated: number }) => void)} */
+let consolidationFollowup = null;
+
+/**
+ * Integration-layer hook, invoked (synchronously, errors swallowed) after
+ * each successful consolidation batch. Registered by bootstrap; default
+ * null = no-op, so tests and bench runs are unaffected.
+ * @param {null | ((chatId: string, result: { added: number, updated: number }) => void)} fn
+ */
+export function setConsolidationFollowup(fn) {
+    consolidationFollowup = typeof fn === 'function' ? fn : null;
+}
+
 // PERSONA_REBUILD_SUGGESTION_THRESHOLD is NOT swept — module-top destructure
 // is fine (snapshot at import matches production behavior).
 //
@@ -284,6 +297,8 @@ export async function consolidate(chatId, opts) {
         work = logTrace(work, trace);
 
         await persistState(chatId, work);
-        return { added, updated, drained: r, parseFailures: 0, entriesSkipped: extracted.skipped };
+        const result = { added, updated, drained: r, parseFailures: 0, entriesSkipped: extracted.skipped };
+        try { consolidationFollowup?.(chatId, result); } catch { /* never break consolidation */ }
+        return result;
     });
 }

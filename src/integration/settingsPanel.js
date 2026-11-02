@@ -22,6 +22,7 @@ import {
     INJECTION_POSITION_IN_CHAT,
 } from './constants.js';
 import { createLogger } from '../core/logger.js';
+import { clearMemories, rebuildMemories, currentChatId, exportMemories, importMemories } from './maintenance.js';
 
 const log = createLogger({ debug: false }).scope('integration:settingsPanel');
 
@@ -303,6 +304,17 @@ function wireInputs(parent, initial) {
             setSettings({ injectionDepth: v });
         });
     }
+    const kSlider = /** @type {HTMLInputElement | null} */ (document.getElementById(`${CSS_PREFIX}-settings-retrieval-k`));
+    const kLabel = document.getElementById(`${CSS_PREFIX}-settings-retrieval-k-value`);
+    if (kSlider) {
+        kSlider.value = String(initial.retrievalK);
+        if (kLabel) kLabel.textContent = String(initial.retrievalK);
+        kSlider.addEventListener('input', () => {
+            const v = Number(kSlider.value);
+            if (kLabel) kLabel.textContent = String(v);
+            setSettings({ retrievalK: v });
+        });
+    }
     if (roleSel) {
         roleSel.addEventListener('change', () => {
             setSettings({ injectionRole: Number(roleSel.value) });
@@ -363,6 +375,137 @@ function wireActions(parent, opts) {
     if (openViewer && typeof opts.onOpenViewer === 'function') {
         openViewer.addEventListener('click', () => opts.onOpenViewer());
     }
+    wireMaintenance(parent);
+}
+
+/** Attach Maintenance section handlers (clear + rebuild with progress). */
+function wireMaintenance(_parent) {
+    const clearBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById(`${CSS_PREFIX}-settings-clear`));
+    const rebuildBtn = /** @type {HTMLButtonElement | null} */ (document.getElementById(`${CSS_PREFIX}-settings-rebuild`));
+    const cancelBtn = document.getElementById(`${CSS_PREFIX}-settings-rebuild-cancel`);
+    const progressBox = document.getElementById(`${CSS_PREFIX}-settings-rebuild-progress`);
+    const barFill = document.getElementById(`${CSS_PREFIX}-settings-rebuild-bar-fill`);
+    const status = document.getElementById(`${CSS_PREFIX}-settings-rebuild-status`);
+    if (!clearBtn || !rebuildBtn) return;
+
+    const toast = (/** @type {string} */ msg, /** @type {string} */ type = 'info') => {
+        const t = /** @type {any} */ (globalThis).toastr;
+        if (t && typeof t[type] === 'function') t[type](msg, 'STARmem');
+        else log.info(msg);
+    };
+
+    const setBusy = (/** @type {boolean} */ busy) => {
+        clearBtn.disabled = busy;
+        rebuildBtn.disabled = busy;
+    };
+
+    clearBtn.addEventListener('click', async () => {
+        const chatId = currentChatId();
+        if (!chatId) { toast('No chat is open.', 'warning'); return; }
+        if (!globalThis.confirm('Wipe ALL STARmem memories for the current chat? This cannot be undone.')) return;
+        setBusy(true);
+        try {
+            await clearMemories(chatId);
+            toast('Memories cleared.', 'success');
+        } catch (err) {
+            log.warn(`clear failed: ${err?.message || err}`);
+            toast(`Clear failed: ${err?.message || err}`, 'error');
+        } finally {
+            setBusy(false);
+        }
+    });
+
+    let cancelled = false;
+    cancelBtn?.addEventListener('click', () => { cancelled = true; });
+
+    rebuildBtn.addEventListener('click', async () => {
+        const chatId = currentChatId();
+        if (!chatId) { toast('No chat is open.', 'warning'); return; }
+        if (!globalThis.confirm('Rebuild wipes existing memories for this chat and re-extracts them from every assistant message (one LLM call per 5 messages). Continue?')) return;
+
+        cancelled = false;
+        setBusy(true);
+        if (progressBox) progressBox.hidden = false;
+        const render = (/** @type {any} */ p) => {
+            if (barFill) {
+                const pct = p.seeded > 0 ? Math.round((p.done / p.seeded) * 100) : 0;
+                barFill.style.width = `${pct}%`;
+            }
+            if (status) {
+                status.textContent = p.phase === 'extracting'
+                    ? `Batch ${p.batch}/${p.batches} — ${p.done}/${p.seeded} messages, ${p.added} added, ${p.updated} updated`
+                    : p.phase === 'seeding' ? 'Reading chat history…'
+                    : p.phase === 'clearing' ? 'Clearing existing memories…'
+                    : (p.message || p.phase);
+            }
+        };
+        try {
+            const final = await rebuildMemories(chatId, { onProgress: render, shouldCancel: () => cancelled });
+            toast(final.message || `Rebuild ${final.phase}.`, final.phase === 'done' ? 'success' : 'info');
+        } catch (err) {
+            log.warn(`rebuild failed: ${err?.message || err}`);
+            toast(`Rebuild failed: ${err?.message || err}`, 'error');
+        } finally {
+            setBusy(false);
+            if (progressBox && status && status.textContent === '') progressBox.hidden = true;
+        }
+    });
+
+    const exportBtn = document.getElementById(`${CSS_PREFIX}-settings-export`);
+    const importBtn = document.getElementById(`${CSS_PREFIX}-settings-import`);
+    const importFile = /** @type {HTMLInputElement | null} */ (document.getElementById(`${CSS_PREFIX}-settings-import-file`));
+    const autoPersona = /** @type {HTMLInputElement | null} */ (document.getElementById(`${CSS_PREFIX}-settings-auto-persona`));
+
+    if (autoPersona) {
+        autoPersona.checked = Boolean(getSettings().autoPersonaRebuild);
+        autoPersona.addEventListener('change', () => {
+            setSettings({ autoPersonaRebuild: autoPersona.checked });
+            toast(`Auto persona rebuild ${autoPersona.checked ? 'enabled' : 'disabled'}.`, 'info');
+        });
+    }
+
+    exportBtn?.addEventListener('click', async () => {
+        const chatId = currentChatId();
+        if (!chatId) { toast('No chat is open.', 'warning'); return; }
+        try {
+            const json = await exportMemories(chatId);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+            a.href = url;
+            a.download = `starmem-${chatId.replace(/[^\w.-]+/g, '_')}-${stamp}.json`;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 10_000);
+            toast('Memories exported.', 'success');
+        } catch (err) {
+            log.warn(`export failed: ${err?.message || err}`);
+            toast(`Export failed: ${err?.message || err}`, 'error');
+        }
+    });
+
+    importBtn?.addEventListener('click', () => {
+        const chatId = currentChatId();
+        if (!chatId) { toast('No chat is open.', 'warning'); return; }
+        importFile?.click();
+    });
+
+    importFile?.addEventListener('change', async () => {
+        const file = importFile.files?.[0];
+        importFile.value = ''; // allow re-picking the same file
+        if (!file) return;
+        const chatId = currentChatId();
+        if (!chatId) { toast('No chat is open.', 'warning'); return; }
+        if (!globalThis.confirm(`Import "${file.name}"? This REPLACES all STARmem memories of the current chat.`)) return;
+        try {
+            const json = await file.text();
+            const r = await importMemories(chatId, json);
+            toast(`Imported ${r.entries} memories (${r.workingBuffer} pending consolidation).`, 'success');
+        } catch (err) {
+            log.warn(`import failed: ${err?.message || err}`);
+            toast(`Import failed: ${err?.message || err}`, 'error');
+        }
+    });
 }
 
 /** Render warnings about missing ST APIs.

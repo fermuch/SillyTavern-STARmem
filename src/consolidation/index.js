@@ -8,6 +8,7 @@
 export { consolidate } from './consolidate.js';
 export { extractFacts } from './extractFacts.js';
 export { findDuplicate, jaccard } from './dedup.js';
+export { mergeSubjects } from './mergeSubjects.js';
 export { callLLM } from './llmClient.js';
 export { rebuildPersona } from './personaRebuild.js';
 export {

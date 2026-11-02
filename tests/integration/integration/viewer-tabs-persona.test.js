@@ -6,6 +6,7 @@ import { describe, test, expect, beforeEach, afterEach, jest } from '@jest/globa
 // Mock rebuildPersona at the module level — MUST come before dynamic import of the SUT.
 jest.unstable_mockModule('../../../src/consolidation/index.js', () => ({
     rebuildPersona: jest.fn(),
+    mergeSubjects: jest.fn(),
 }));
 
 // Dynamic-import after the mock is registered so renderTab sees the mocked rebuildPersona.
@@ -119,10 +120,11 @@ describe('viewer/tabs/persona', () => {
         }));
     });
 
-    test('progress callback appends lines to progress box', async () => {
+    test('progress callback renders one updating line per stage', async () => {
         /** @type {any} */ (rebuildPersona).mockImplementation(async (_c, _s, opts) => {
             opts.onProgress({ stage: 'snapshot' });
-            opts.onProgress({ stage: 'cluster', depth: 1, clusters: 3 });
+            opts.onProgress({ stage: 'summarize', depth: 1, cluster: 0, clusters: 3 });
+            opts.onProgress({ stage: 'summarize', depth: 1, cluster: 2, clusters: 3 });
             return { episodicCount: 10, layers: 2, replacedCount: 0, newCount: 2, duration: 500 };
         });
         const a = personaEntry({ subject: 'alice', content: 'a' });
@@ -134,9 +136,12 @@ describe('viewer/tabs/persona', () => {
         btn.click();
         await new Promise(r => setTimeout(r, 20));
         const lines = parent.querySelectorAll(`.${CSS_PREFIX}-viewer-progress-line`);
-        expect([...lines].some(l => l.textContent?.includes('snapshot'))).toBe(true);
-        expect([...lines].some(l => l.textContent?.includes('cluster'))).toBe(true);
-        expect([...lines].some(l => l.textContent?.includes('clusters=3'))).toBe(true);
+        const texts = [...lines].map(l => l.textContent || '');
+        // Friendly stage labels, one line per stage — repeated summarize
+        // events update in place rather than flooding the log.
+        expect(texts.some(t => t.includes('Snapshotting'))).toBe(true);
+        expect(texts.filter(t => t.includes('summarizing cluster')).length).toBe(1);
+        expect(texts.some(t => t.includes('summarizing cluster 3/3'))).toBe(true);
     });
 
     test('cancel during rebuild aborts via AbortSignal', async () => {

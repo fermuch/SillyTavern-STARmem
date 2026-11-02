@@ -159,7 +159,7 @@ export async function rebuildPersona(chatId, subject, opts) {
         let clusterIdx = 0;
         for (const [, members] of byCluster) {
             throwIfAborted();
-            report('summarize', { depth, cluster: clusterIdx });
+            report('summarize', { depth, cluster: clusterIdx, clusters: byCluster.size });
             const { text, sourceLeafIds } = await summarizeCluster(members, {
                 profileId, subject, depth, signal,
             });

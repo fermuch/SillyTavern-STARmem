@@ -81,6 +81,8 @@ export const MACRO_NAME = 'starmem-memories';
  *   extractionModelLabel: string,
  *   tracesMaxLen: number,
  *   debugMode: boolean,
+ *   autoPersonaRebuild: boolean,
+ *   retrievalK: number,
  *   injectionMode: 'automatic'|'macro'|'off',
  *   injectionPosition: number,
  *   injectionDepth: number,
@@ -97,6 +99,8 @@ export const SETTINGS_DEFAULTS = Object.freeze({
     extractionModelLabel: '',
     tracesMaxLen: 128,
     debugMode: false,
+    autoPersonaRebuild: false,
+    retrievalK: 5,
     injectionMode: INJECTION_MODE_AUTOMATIC,
     injectionPosition: INJECTION_POSITION_IN_CHAT,
     injectionDepth: INJECTION_DEPTH,
@@ -108,6 +112,7 @@ export const SETTINGS_BOUNDS = Object.freeze({
     bufferSize: { min: 1, max: 50 },
     idleTimeout: { min: 5_000, max: 600_000 },
     tracesMaxLen: { min: 16, max: 1024 },
+    retrievalK: { min: 1, max: 50 },
     injectionDepth: { min: 0, max: 10 },
 });
 

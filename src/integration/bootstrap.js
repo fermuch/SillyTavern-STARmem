@@ -26,6 +26,8 @@ import {
 import { setScorer } from '../retrieval/index.js';
 import { getSettings } from './settings.js';
 import { registerStarmemMacro } from './macro.js';
+import { setConsolidationFollowup } from '../consolidation/consolidate.js';
+import { maybeAutoRebuildPersona } from './maintenance.js';
 import { createLogger } from '../core/logger.js';
 
 const log = createLogger({ debug: false }).scope('integration:bootstrap');
@@ -392,6 +394,13 @@ export function bootstrap() {
     // and we don't want to block bootstrap on it.
     registerStarmemMacro().catch(err =>
         log.warn(`registerStarmemMacro failed: ${err?.message || err}`));
+    // Auto persona rebuild: fires after any successful consolidation when the
+    // user enabled it and the suggestion flag is set. Idempotent registration.
+    setConsolidationFollowup((chatId) => {
+        maybeAutoRebuildPersona(chatId)
+            .catch(err => log.warn(`auto persona rebuild failed: ${err?.message || err}`));
+    });
+
 
     // Seed lastChatId from current context.
     lastChatId = typeof ctx.chatId === 'string' && ctx.chatId.length > 0 ? ctx.chatId : null;
